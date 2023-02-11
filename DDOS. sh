@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# Check incoming IPs for a DDoS attack
+
+# Set total bytes threshold
+BYTES_THRESHOLD=1000
+
+# Set log file path
+LOG_FILE="/var/log/ddos.log"
+
+# Get IP address
+IP=$(echo $1 | cut -d ":" -f 1)
+
+# Get total bytes
+BYTES=$(sudo iptables -nvx -L INPUT | grep -w "$IP" | awk '{print $2}' | grep -E "^[0-9]+$")
+
+# Check if total bytes are an integer
+if expr "$BYTES" + 0 > /dev/null 2>&1
+then
+  # Check if more than threshold
+  if [ "$BYTES" -gt "$BYTES_THRESHOLD" ]
+  then
+    # Block IP
+    sudo iptables -A INPUT -s $IP -j DROP
+    # Log the IP address and the number of bytes
+    echo "$(date +%F_%T) : DDoS attack detected from IP $IP with $BYTES bytes" >> $LOG_FILE
+    # Send alert
+    echo "DDoS attack detected from IP $IP with $BYTES bytes" | mail -s "DDoS ALERT" your@email.com
+  fi
+else
+  echo "$(date +%F_%T) : The number of bytes for IP $IP is not a valid integer: $BYTES" >> $LOG_FILE
+fi
